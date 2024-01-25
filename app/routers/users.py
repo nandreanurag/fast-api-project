@@ -1,4 +1,3 @@
-
 from fastapi import HTTPException, Depends, APIRouter
 from sqlalchemy.orm import Session
 
@@ -8,10 +7,14 @@ from app.utils import pwd_context
 from execeptions.DataNotFoundException import DataNotFoundException
 from execeptions.UserAlreadyExistsException import UserAlreadyExistsException
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/users",
+    tags=['Users']
+)
 
-@router.post("/users", status_code=201)
-def create_user(user: schemas.UserCreate,db: Session = Depends(get_db)):
+
+@router.post("/", status_code=201, response_model=schemas.UserOut)
+def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     try:
         filter_user = db.query(models.User).filter(models.User.email == user.email)
         if filter_user.first():
@@ -29,10 +32,11 @@ def create_user(user: schemas.UserCreate,db: Session = Depends(get_db)):
         print(f"Exception: {e}")
         raise HTTPException(status_code=500, detail="internal Server Error")
 
-@router.get('/users/{id}',response_model=schemas.UserOut)
-def get_user(id:int,db: Session = Depends(get_db)):
+
+@router.get('/{id}', response_model=schemas.UserOut)
+def get_user(id: int, db: Session = Depends(get_db)):
     try:
-        user = db.query(models.User).filter(models.User.id==id).first()
+        user = db.query(models.User).filter(models.User.id == id).first()
         if not user:
             raise DataNotFoundException(f"Post with id: {id} Not Found!")
         return user
@@ -40,6 +44,3 @@ def get_user(id:int,db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-

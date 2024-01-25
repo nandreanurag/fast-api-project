@@ -3,13 +3,17 @@ from typing import List
 from fastapi import HTTPException, Depends, APIRouter
 from sqlalchemy.orm import Session
 
-from app import models, schemas
+from app import models, schemas, oauth2
 from app.database import get_db
 from execeptions.DataNotFoundException import DataNotFoundException
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/posts",
+    tags=['Posts']
+)
 
-@router.get("/posts", response_model=List[schemas.Post])
+
+@router.get("/", response_model=List[schemas.Post])
 def get_posts(db: Session = Depends(get_db)):
     # above db is injected as a dependency
     # using pydantic (Similar to hibernate/Spring Data where as sqlalchemy is similar to JPA
@@ -20,7 +24,7 @@ def get_posts(db: Session = Depends(get_db)):
     return posts
 
 
-@router.get("/posts/{id}", response_model=schemas.Post)
+@router.get("/{id}", response_model=schemas.Post)
 def get_post(id, db: Session = Depends(get_db)):
     try:
         try:
@@ -48,13 +52,14 @@ def get_post(id, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
-@router.post("/posts", status_code=201, response_model=schemas.Post)
-def create_post(post: schemas.PostCreate, db: Session = Depends(get_db)):
+@router.post("/", status_code=201, response_model=schemas.Post)
+def create_post(post: schemas.PostCreate, db: Session = Depends(get_db),
+                current_user: schemas.UserOut = Depends(oauth2.get_current_user)):
     try:
         # cursor.execute("""INSERT INTO POSTS(TITLE,CONTENT) VALUES (%s,%s) RETURNING * """, (post.title, post.content))
         # new_post = cursor.fetchone()
         # conn.commit()
-
+        print(current_user.password)
         # new_post = models.Post(title=post.title,content=post.content,published=post.published)
         new_post = models.Post(**post.dict())
         db.add(new_post)
@@ -66,7 +71,7 @@ def create_post(post: schemas.PostCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="internal Server Error")
 
 
-@router.delete("/posts/{id}", status_code=204)
+@router.delete("/{id}", status_code=204)
 def delete_post(id, db: Session = Depends(get_db)):
     try:
         try:
@@ -97,7 +102,7 @@ def delete_post(id, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/posts/{id}", status_code=200, response_model=schemas.Post)
+@router.put("/{id}", status_code=200, response_model=schemas.Post)
 def update_posts(id, post: schemas.PostCreate, db: Session = Depends(get_db)):
     try:
         try:

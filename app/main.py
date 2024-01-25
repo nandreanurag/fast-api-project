@@ -6,7 +6,7 @@ from psycopg2.extras import RealDictCursor
 
 from app import models
 from app.database import engine
-from .routers import posts, users
+from .routers import posts, users, auth
 
 models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
@@ -27,7 +27,7 @@ my_posts = [{'id': 1, 'title': 'HIMYM', 'content': "Rom Com "},
 
 app.include_router(posts.router)
 app.include_router(users.router)
-
+app.include_router(auth.router)
 @app.get("/")
 async def root():
     return {"message": "Hello world!!"}
