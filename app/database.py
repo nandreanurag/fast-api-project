@@ -1,5 +1,6 @@
 from fastapi import HTTPException
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -23,7 +24,7 @@ def get_db():
         db = SessionLocal()
         db.execute(text('SELECT 1')).fetchall()
         yield db
-    except Exception as e:
+    except SQLAlchemyError as e:
         print(f"Error establishing DB connection: {e}")
         raise HTTPException(status_code=503, detail="Service Unavailable")
     finally:

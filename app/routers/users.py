@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app import models, schemas
 from app.database import get_db
+from app.services.userService import user_service
 from app.utils import pwd_context
 from execeptions.DataNotFoundException import DataNotFoundException
 from execeptions.UserAlreadyExistsException import UserAlreadyExistsException
@@ -16,15 +17,10 @@ router = APIRouter(
 @router.post("/", status_code=201, response_model=schemas.UserOut)
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     try:
-        filter_user = db.query(models.User).filter(models.User.email == user.email)
-        if filter_user.first():
+        filter_user = user_service.get_user_by_email_Id(email=user.email, db=db)
+        if filter_user:
             raise UserAlreadyExistsException(f"User with email: {user.email} already Exists!")
-        hashed_user_pass = pwd_context.hash(user.password)
-        user.password = hashed_user_pass
-        new_user = models.User(**user.dict())
-        db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
+        new_user = user_service.create_user(user=user,db=db)
         return new_user
     except UserAlreadyExistsException as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -36,7 +32,7 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 @router.get('/{id}', response_model=schemas.UserOut)
 def get_user(id: int, db: Session = Depends(get_db)):
     try:
-        user = db.query(models.User).filter(models.User.id == id).first()
+        user = user_service.get_user_by_Id(id=id, db=db)
         if not user:
             raise DataNotFoundException(f"Post with id: {id} Not Found!")
         return user
