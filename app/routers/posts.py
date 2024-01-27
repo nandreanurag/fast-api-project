@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from fastapi import HTTPException, Depends, APIRouter
 from sqlalchemy.orm import Session
@@ -13,13 +13,22 @@ router = APIRouter(
 )
 
 
+def _and(param):
+    pass
+
+
 @router.get("/", response_model=List[schemas.Post])
-def get_posts(db: Session = Depends(get_db)):
+def get_posts(limit: int = 10, skip: int = 0, search:Optional[str]="", db: Session = Depends(get_db),
+              current_user: schemas.UserOut = Depends(oauth2.get_current_user)):
     # above db is injected as a dependency
     # using pydantic (Similar to hibernate/Spring Data where as sqlalchemy is similar to JPA
     # cursor.execute("""SELECT * FROM POSTS""")
     # posts = cursor.fetchall()
-    posts = db.query(models.Post).all()
+    print(limit)
+    print(search)
+    # posts = db.query(models.Post).filter(models.Post.owner_id == current_user.id).all()
+    posts = db.query(models.Post).filter(models.Post.owner_id == current_user.id).filter(models.Post.title.contains(search)).limit(limit).offset(skip)
+
     # return {"data": posts}
     return posts
 
@@ -61,7 +70,8 @@ def create_post(post: schemas.PostCreate, db: Session = Depends(get_db),
         # conn.commit()
         print(current_user.password)
         # new_post = models.Post(title=post.title,content=post.content,published=post.published)
-        new_post = models.Post(**post.dict())
+        new_post = models.Post(owner_id=current_user.id, **post.dict())
+        # print(type(new_post))
         db.add(new_post)
         db.commit()
         db.refresh(new_post)
@@ -72,16 +82,20 @@ def create_post(post: schemas.PostCreate, db: Session = Depends(get_db),
 
 
 @router.delete("/{id}", status_code=204)
-def delete_post(id, db: Session = Depends(get_db)):
+def delete_post(id, db: Session = Depends(get_db), current_user: schemas.UserOut = Depends(oauth2.get_current_user)):
     try:
         try:
             id = int(id)
         except ValueError:
             raise HTTPException(status_code=422, detail="Invalid ID format. Please provide an integer.")
-        post = db.query(models.Post).filter(models.Post.id == id).first()
+        post_query = db.query(models.Post).filter(models.Post.id == id)
+        post = post_query.first()
         if post is None:
             raise DataNotFoundException(f"Post with id: {id} Not Found!")
-        post.delete(synchronize_session=False)
+        if post.owner_id != current_user.id:
+            raise HTTPException(status_code=403,
+                                detail=f"User with {current_user.id} not authorized to perform requested action")
+        post_query.delete(synchronize_session=False)
         db.commit()
 
         # updated_posts = [i for i in my_posts if i['id'] != id]
@@ -99,20 +113,26 @@ def delete_post(id, db: Session = Depends(get_db)):
     except DataNotFoundException as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
+        print(e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/{id}", status_code=200, response_model=schemas.Post)
-def update_posts(id, post: schemas.PostCreate, db: Session = Depends(get_db)):
+def update_posts(id, post: schemas.PostCreate, db: Session = Depends(get_db),
+                 current_user: schemas.UserOut = Depends(oauth2.get_current_user)):
     try:
         try:
             id = int(id)
         except ValueError:
             raise HTTPException(status_code=422, detail="Invalid ID format. Please provide an integer.")
         post_query = db.query(models.Post).filter(models.Post.id == id)
-        if post_query.first() is None:
+        filtered_post = post_query.first()
+        if filtered_post is None:
             raise DataNotFoundException(f"Post with id: {id} Not Found!")
         # post_query.update({'title':'hey updated title', 'content':'Updated content'}, synchronize_session=False)
+        if filtered_post.owner_id != current_user.id:
+            raise HTTPException(status_code=403,
+                                detail=f"User with {current_user.id} not authorized to perform requested action")
         post_query.update(post.dict(), synchronize_session=False)
 
         db.commit()
